@@ -1,4 +1,3 @@
-// The use server directive is critical; do not remove
 'use server';
 /**
  * @fileOverview Generates personalized meal plans based on user preferences using AI.
@@ -27,8 +26,17 @@ const GenerateMealPlanInputSchema = z.object({
 });
 export type GenerateMealPlanInput = z.infer<typeof GenerateMealPlanInputSchema>;
 
+const MealSchema = z.object({
+  id: z.number().describe('Unique identifier for the meal.'),
+  type: z.string().describe('The type of meal (e.g., breakfast, lunch, dinner).'),
+  title: z.string().describe('The title of the meal.'),
+  calories: z.number().describe('The number of calories in the meal.'),
+  tags: z.array(z.string()).describe('Tags associated with the meal (e.g., High-Protein, Gluten-Free).'),
+  image: z.string().describe('URL of the meal image.'),
+});
+
 const GenerateMealPlanOutputSchema = z.object({
-  mealPlan: z.string().describe('A detailed meal plan for the user, including recipes and nutritional information.'),
+  mealPlan: z.string().describe('A detailed meal plan for the user, including recipes and nutritional information, in JSON format.'),
 });
 export type GenerateMealPlanOutput = z.infer<typeof GenerateMealPlanOutputSchema>;
 
@@ -56,7 +64,7 @@ const prompt = ai.definePrompt({
   },
   output: {
     schema: z.object({
-      mealPlan: z.string().describe('A detailed meal plan for the user, including recipes and nutritional information.'),
+      mealPlan: z.string().describe('A detailed meal plan for the user, including recipes and nutritional information, in JSON format.'),
     }),
   },
   prompt: `You are a personal meal plan assistant. Generate a meal plan based on the following information:
@@ -68,7 +76,20 @@ Cooking Skills: {{{cookingSkills}}}
 Time Availability: {{{timeAvailability}}}
 Meal Frequency: {{{mealFrequency}}}
 
-Create a meal plan that is tailored to the user's specific needs and preferences. Provide detailed recipes and nutritional information for each meal.
+Create a meal plan that is tailored to the user's specific needs and preferences. The meal plan should be an array of JSON objects. Each object should conform to the following schema:
+
+\`\`\`json
+{
+  "id": 1,
+  "type": "Breakfast",
+  "title": "Vegan Chickpea Quinoa Bowl",
+  "calories": 520,
+  "tags": ["High-Protein", "Gluten-Free", "30 Min"],
+  "image": "https://picsum.photos/200/150"
+}
+\`\`\`
+
+Ensure the output is valid JSON.
 `,
 });
 

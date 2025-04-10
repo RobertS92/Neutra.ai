@@ -1,827 +1,611 @@
-
 'use client';
 
+import {useState, useCallback} from 'react';
+import {useRouter} from 'next/navigation';
+import {z} from 'zod';
+import {useForm} from 'react-hook-form';
+import {zodResolver} from '@hookform/resolvers/zod';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Icons} from '@/components/icons';
-import {useState, useCallback} from 'react';
-import {Slider} from '@/components/ui/slider';
+import {Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage} from '@/components/ui/form';
 import {Input} from '@/components/ui/input';
-import {Textarea} from '@/components/ui/textarea';
-import {useToast} from '@/hooks/use-toast';
-import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
-import {Switch} from '@/components/ui/switch';
 import {Label} from '@/components/ui/label';
 import {PantryScanner} from '@/components/pantry-scanner';
-import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from '@/components/ui/accordion';
+import {useToast} from '@/hooks/use-toast';
+import {Textarea} from '@/components/ui/textarea';
+import {Slider} from '@/components/ui/slider';
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // Define types for onboarding data and steps
 interface OnboardingData {
   entryMode?: 'llm' | 'interactive';
   age?: number;
-  basicInfo?: {height?: number; weight?: number; biologicalSex?: string; activityLevel?: string};
-  fitnessGoals?: {
-    primaryGoal: string;
-    secondaryGoals?: string[];
-    weightChange?: number;
-    timeline?: string;
-    activityLevel?: string;
-    intensityLevel?: number;
-    trainingSchedule?: string;
-    targetBodyAreas?: string[];
-    recompositionIntent?: string;
-  };
-  dietaryNeeds?: {
-    dietType: string;
-    allergies?: string[];
-    medicalConditions?: string[];
-  };
+  height?: number;
+  weight?: number;
+  biologicalSex?: string;
+  activityLevel?: string;
+  fitnessGoals?: string;
+  goalIntensity?: number;
+  dietType?: string;
+  allergies?: string[];
+  medicalConditions?: string[];
   tastePreferences?: {
-    sweet?: number;
-    spicy?: number;
-    savory?: number;
-    umami?: number;
-    cuisines?: string[];
-    dislikedIngredients?: string[];
+    sweet: number;
+    spicy: number;
+    savory: number;
+    umami: number;
   };
-  cookingHabits?: {
-    timePerMeal?: string;
-    cookingSkill?: string;
-    equipment?: string[];
-    mealPrepPreference?: string;
-  };
+  preferredCuisines?: string[];
+  dislikedIngredients?: string[];
+  timePerMeal?: number;
+  cookingSkill?: string;
+  equipment?: string[];
+  mealPrepPreference?: string;
   pantryInventory?: string;
   manualIngredients?: string;
-  summaryConfirmation?: string;
-  uploadedIngredients?: { [category: string]: string[] }; // Added: Track uploaded ingredients
+  uploadedIngredients?: { [category: string]: string[] };
+  summaryConfirmation?: boolean;
 }
 
-const dietTypeOptions = [
-  {value: 'omnivore', label: 'Omnivore'},
-  {value: 'vegetarian', label: 'Vegetarian'},
-  {value: 'vegan', label: 'Vegan'},
-  {value: 'pescatarian', label: 'Pescatarian'},
-  {value: 'keto', label: 'Keto'},
-  {value: 'lowFODMAP', label: 'Low-FODMAP'},
-  {value: 'diabetic', label: 'Diabetic-Friendly'},
-  {value: 'paleo', label: 'Paleo'},
-  {value: 'glutenFree', label: 'Gluten-Free'},
-  {value: 'dash', label: 'DASH'},
-  {value: 'whole30', label: 'Whole30'},
-  {value: 'aip', label: 'AIP'},
-  {value: 'highProtein', label: 'High-Protein'},
-  {value: 'mediterranean', label: 'Mediterranean'},
-];
-
-const cuisineOptions = [
-  {value: 'mediterranean', label: 'Mediterranean'},
-  {value: 'asian', label: 'Asian'},
-  {value: 'latin', label: 'Latin'},
-  {value: 'african', label: 'African'},
-  {value: 'indian', label: 'Indian'},
-  {value: 'american', label: 'American'},
-];
-
-const equipmentOptions = [
-  {value: 'oven', label: 'Oven'},
-  {value: 'blender', label: 'Blender'},
-  {value: 'airFryer', label: 'Air Fryer'},
-  {value: 'crockpot', label: 'Crockpot'},
-];
-
-interface OnboardingFormProps {
-  setMealPlan: (mealPlan: {content: string}) => void;
+interface StepProps {
+  onNext: () => void;
+  onSelect: (value: any) => void;
+  onboardingData: OnboardingData;
 }
 
-// Functional components for each step
-const EntryModeStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: 'llm' | 'interactive') => void}) => {
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>How would you like to set up your personalized meal experience?</CardTitle>
-        <CardDescription>We adjust calories, nutrients, and recommendations based on your age.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <Button
-          onClick={() => {
-            onSelect('llm');
-            onNext();
-          }}
-        >
-          Describe Your Goals (Recommended for Fast Setup)
-        </Button>
-        <Button
-          onClick={() => {
-            onSelect('interactive');
-            onNext();
-          }}
-        >
-          Build My Plan Step-by-Step (Interactive Setup)
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
+const onboardingFormSchema = z.object({
+  entryMode: z.enum(['llm', 'interactive']).optional(),
+  age: z.number().min(12).max(100).optional(),
+  height: z.number().optional(),
+  weight: z.number().optional(),
+  biologicalSex: z.string().optional(),
+  activityLevel: z.string().optional(),
+  fitnessGoals: z.string().optional(),
+  goalIntensity: z.number().min(0).max(100).optional(),
+  dietType: z.string().optional(),
+  allergies: z.array(z.string()).optional(),
+  medicalConditions: z.array(z.string()).optional(),
+  tastePreferences: z.object({
+    sweet: z.number(),
+    spicy: z.number(),
+    savory: z.number(),
+    umami: z.number(),
+  }).optional(),
+  preferredCuisines: z.array(z.string()).optional(),
+  dislikedIngredients: z.array(z.string()).optional(),
+  timePerMeal: z.number().optional(),
+  cookingSkill: z.string().optional(),
+  equipment: z.array(z.string()).optional(),
+  mealPrepPreference: z.string().optional(),
+  pantryInventory: z.string().optional(),
+  manualIngredients: z.string().optional(),
+  uploadedIngredients: z.record(z.array(z.string())).optional(),
+  summaryConfirmation: z.boolean().optional(),
+});
 
-const AgeStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: number) => void}) => {
-  const [age, setAge] = useState<number | null>(null);
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>How old are you?</CardTitle>
-        <CardDescription>We adjust calories, nutrients, and recommendations based on your age.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <Input
-          type="number"
-          placeholder="Enter your age"
-          onChange={(e) => setAge(Number(e.target.value))}
-        />
-        <Button
-          onClick={() => {
-            if (age && age >= 12 && age <= 100) {
-              onSelect(age);
-              onNext();
-            }
-          }}
-          disabled={!age || age < 12 || age > 100}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const FitnessGoalsLLMStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: string) => void}) => {
-  const [goals, setGoals] = useState('');
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Fitness &amp; Health Goals (LLM)</CardTitle>
-        <CardDescription>
-          What are your fitness and health goals? Include things like weight changes, muscle targets, energy goals, or timelines.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <Textarea placeholder="Enter your goals" onChange={(e) => setGoals(e.target.value)} />
-        <Button
-          onClick={() => {
-            onSelect(goals);
-            onNext();
-          }}
-          disabled={!goals}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const FitnessGoalsInteractiveStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => {
-  const [primaryGoal, setPrimaryGoal] = useState<string | null>(null);
-  const [weightChange, setWeightChange] = useState<number | null>(null);
-  const [timeline, setTimeline] = useState<string | null>(null);
-  const [activityLevel, setActivityLevel] = useState<string | null>(null);
-  const [intensityLevel, setIntensityLevel] = useState<number[]>([50]);
-
-  const handleIntensityChange = (value: number[]) => {
-    setIntensityLevel(value);
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Fitness &amp; Health Goals (Interactive)</CardTitle>
-        <CardDescription>Choose your primary goal and provide additional details.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <h3 className="text-lg font-semibold">Primary Goal</h3>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={primaryGoal === 'loseWeight' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('loseWeight')}
-          >
-            Lose Weight
-          </Button>
-          <Button
-            variant={primaryGoal === 'buildMuscle' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('buildMuscle')}
-          >
-            Build Muscle
-          </Button>
-          <Button
-            variant={primaryGoal === 'recomposition' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('recomposition')}
-          >
-            Recomposition
-          </Button>
-          <Button
-            variant={primaryGoal === 'endurance' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('endurance')}
-          >
-            Endurance &amp; Performance
-          </Button>
-          <Button
-            variant={primaryGoal === 'maintainWeight' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('maintainWeight')}
-          >
-            Maintain Weight
-          </Button>
-          <Button
-            variant={primaryGoal === 'supportCondition' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('supportCondition')}
-          >
-            Support a Medical Condition
-          </Button>
-          <Button
-            variant={primaryGoal === 'postpartum' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('postpartum')}
-          >
-            Postpartum Recovery
-          </Button>
-          <Button
-            variant={primaryGoal === 'healthyAging' ? 'default' : 'outline'}
-            onClick={() => setPrimaryGoal('healthyAging')}
-          >
-            Healthy Aging / Longevity
-          </Button>
-        </div>
-
-        {primaryGoal === 'loseWeight' && (
-          <>
-            <h3 className="text-lg font-semibold">Lose Weight Details</h3>
-            <Input
-              type="number"
-              placeholder="How many pounds would you like to lose?"
-              onChange={(e) => setWeightChange(Number(e.target.value))}
-            />
-            <Input type="text" placeholder="By when?" onChange={(e) => setTimeline(e.target.value)} />
-            <Input type="text" placeholder="How active are you?" onChange={(e) => setActivityLevel(e.target.value)} />
-          </>
-        )}
-
-        <h3 className="text-lg font-semibold">Goal Intensity</h3>
-        <div className="flex items-center space-x-4">
-          <span className="w-12 text-right">Intensity:</span>
-          <Slider
-            defaultValue={intensityLevel}
-            max={100}
-            min={0}
-            step={1}
-            onValueChange={handleIntensityChange}
-            className="flex-1"
-          />
-          <span className="w-12">{intensityLevel[0]}%</span>
-        </div>
-
-        <Button
-          onClick={() => {
-            onSelect({
-              primaryGoal,
-              weightChange,
-              timeline,
-              activityLevel,
-              intensityLevel: intensityLevel[0],
-            });
-            onNext();
-          }}
-          disabled={!primaryGoal}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const DietaryNeedsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => {
-  const [dietType, setDietType] = useState<string | null>(null);
-  const [allergies, setAllergies] = useState<string[]>([]);
-  const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [showDietDisclaimer, setShowDietDisclaimer] = useState(false);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-  };
-
-  const handleAddAllergy = () => {
-    if (inputValue.trim() !== '' && !allergies.includes(inputValue.trim())) {
-      setAllergies([...allergies, inputValue.trim()]);
-      setInputValue('');
-    }
-  };
-
-  const handleRemoveAllergy = (allergyToRemove: string) => {
-    setAllergies(allergies.filter(allergy => allergy !== allergyToRemove));
-  };
-
-  const handleDietTypeChange = (value: string) => {
-    setDietType(value);
-    if (['keto', 'aip', 'whole30'].includes(value)) {
-      setShowDietDisclaimer(true);
-    } else {
-      setShowDietDisclaimer(false);
-    }
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Dietary Needs &amp; Health</CardTitle>
-        <CardDescription>Select your diet type and any allergies or medical conditions.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <h3 className="text-lg font-semibold">Select Your Diet Type</h3>
-        <div className="flex flex-wrap gap-2">
-          {dietTypeOptions.map(option => (
-            <Button
-              key={option.value}
-              variant={dietType === option.value ? 'default' : 'outline'}
-              onClick={() => handleDietTypeChange(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-
-        {showDietDisclaimer && (
-          <Alert variant="warning">
-            <AlertTitle>Trigger Warning/Disclaimer</AlertTitle>
-            <AlertDescription>
-              Some restrictive diets can affect your health. Consult a professional before starting plans like Keto, AIP, or Whole30.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <h3 className="text-lg font-semibold">Allergies &amp; Intolerances</h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {allergies.map(allergy => (
-            <Button key={allergy} variant="secondary" onClick={() => handleRemoveAllergy(allergy)}>
-              {allergy}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="Add allergy"
-            value={inputValue}
-            onChange={handleInputChange}
-            className="border rounded px-2 py-1 w-full"
-          />
-          <Button type="button" onClick={handleAddAllergy}>
-            Add
-          </Button>
-        </div>
-
-        <h3 className="text-lg font-semibold">Medical Conditions (Optional)</h3>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={medicalConditions.includes('diabetes') ? 'default' : 'outline'}
-            onClick={() =>
-              setMedicalConditions(prev =>
-                prev.includes('diabetes') ? prev.filter(item => item !== 'diabetes') : [...prev, 'diabetes']
-              )
-            }
-          >
-            Diabetes
-          </Button>
-          <Button
-            variant={medicalConditions.includes('pcos') ? 'default' : 'outline'}
-            onClick={() =>
-              setMedicalConditions(prev => (prev.includes('pcos') ? prev.filter(item => item !== 'pcos') : [...prev, 'pcos']))
-            }
-          >
-            PCOS
-          </Button>
-          {/* Add more medical conditions as needed */}
-        </div>
-
-        <Button
-          onClick={() => {
-            onSelect({
-              dietType,
-              allergies,
-              medicalConditions,
-            });
-            onNext();
-          }}
-          disabled={!dietType}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const TastePreferencesStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => {
-  const [sweet, setSweet] = useState<number[]>([50]);
-  const [spicy, setSpicy] = useState<number[]>([50]);
-  const [savory, setSavory] = useState<number[]>([50]);
-  const [umami, setUmami] = useState<number[]>([50]);
-  const [cuisines, setCuisines] = useState<string[]>([]);
-  const [dislikedIngredients, setDislikedIngredients] = useState<string[]>([]);
-  const [inputValue, setInputValue] = useState('');
-
-  const handleSliderChange = (setter: (value: number[]) => void) => (value: number[]) => {
-    setter(value);
-  };
-
-  const handleCuisineSelect = (cuisine: string) => {
-    setCuisines(prev => {
-      if (prev.includes(cuisine)) {
-        return prev.filter(item => item !== cuisine);
-      } else {
-        return [...prev, cuisine];
-      }
-    });
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-  };
-
-  const handleAddDislikedIngredient = () => {
-    if (inputValue.trim() !== '' && !dislikedIngredients.includes(inputValue.trim())) {
-      setDislikedIngredients([...dislikedIngredients, inputValue.trim()]);
-      setInputValue('');
-    }
-  };
-
-  const handleRemoveDislikedIngredient = (ingredientToRemove: string) => {
-    setDislikedIngredients(dislikedIngredients.filter(ingredient => ingredient !== ingredientToRemove));
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Taste &amp; Cuisine Preferences</CardTitle>
-        <CardDescription>Tell us about your taste preferences.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <h3 className="text-lg font-semibold">Flavor Preferences</h3>
-        <div className="mb-4">
-          <div className="flex items-center space-x-4">
-            <span className="w-12 text-right">Sweet:</span>
-            <Slider
-              defaultValue={sweet}
-              max={100}
-              min={0}
-              step={1}
-              onValueChange={handleSliderChange(setSweet)}
-              className="flex-1"
-            />
-            <span className="w-12">{sweet[0]}%</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="w-12 text-right">Spicy:</span>
-            <Slider
-              defaultValue={spicy}
-              max={100}
-              min={0}
-              step={1}
-              onValueChange={handleSliderChange(setSpicy)}
-              className="flex-1"
-            />
-            <span className="w-12">{spicy[0]}%</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="w-12 text-right">Savory:</span>
-            <Slider
-              defaultValue={savory}
-              max={100}
-              min={0}
-              step={1}
-              onValueChange={handleSliderChange(setSavory)}
-              className="flex-1"
-            />
-            <span className="w-12">{savory[0]}%</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="w-12 text-right">Umami:</span>
-            <Slider
-              defaultValue={umami}
-              max={100}
-              min={0}
-              step={1}
-              onValueChange={handleSliderChange(setUmami)}
-              className="flex-1"
-            />
-            <span className="w-12">{umami[0]}%</span>
-          </div>
-        </div>
-
-        <h3 className="text-lg font-semibold">Cuisine Preferences</h3>
-        <div className="flex flex-wrap gap-2">
-          {cuisineOptions.map(cuisine => (
-            <Button
-              key={cuisine.value}
-              variant={cuisines.includes(cuisine.value) ? 'default' : 'outline'}
-              onClick={() => handleCuisineSelect(cuisine.value)}
-            >
-              {cuisine.label}
-            </Button>
-          ))}
-        </div>
-
-        <h3 className="text-lg font-semibold">Disliked Ingredients</h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {dislikedIngredients.map(ingredient => (
-            <Button key={ingredient} variant="secondary" onClick={() => handleRemoveDislikedIngredient(ingredient)}>
-              {ingredient}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="Add disliked ingredient"
-            value={inputValue}
-            onChange={handleInputChange}
-            className="border rounded px-2 py-1 w-full"
-          />
-          <Button type="button" onClick={handleAddDislikedIngredient}>
-            Add
-          </Button>
-        </div>
-
-        <Button
-          onClick={() => {
-            onSelect({
-              sweet: sweet[0],
-              spicy: spicy[0],
-              savory: savory[0],
-              umami: umami[0],
-              cuisines,
-              dislikedIngredients,
-            });
-            onNext();
-          }}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => {
-  const [timePerMeal, setTimePerMeal] = useState<string | null>(null);
-  const [cookingSkill, setCookingSkill] = useState<string | null>(null);
-  const [equipment, setEquipment] = useState<string[]>([]);
-  const [mealPrepPreference, setMealPrepPreference] = useState<string | null>(null);
-
-  const handleEquipmentSelect = (item: string) => {
-    setEquipment(prev => {
-      if (prev.includes(item)) {
-        return prev.filter(i => i !== item);
-      } else {
-        return [...prev, item];
-      }
-    });
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Cooking Habits &amp; Equipment</CardTitle>
-        <CardDescription>Share your cooking habits and equipment.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <h3 className="text-lg font-semibold">Time Per Meal</h3>
-        <div className="flex flex-wrap gap-2">
-          <Button variant={timePerMeal === '15' ? 'default' : 'outline'} onClick={() => setTimePerMeal('15')}>
-            15 mins
-          </Button>
-          <Button variant={timePerMeal === '30' ? 'default' : 'outline'} onClick={() => setTimePerMeal('30')}>
-            30 mins
-          </Button>
-          <Button variant={timePerMeal === '45' ? 'default' : 'outline'} onClick={() => setTimePerMeal('45')}>
-            45+ mins
-          </Button>
-        </div>
-
-        <h3 className="text-lg font-semibold">Cooking Skill</h3>
-        <div className="flex flex-wrap gap-2">
-          <Button variant={cookingSkill === 'beginner' ? 'default' : 'outline'} onClick={() => setCookingSkill('beginner')}>
-            Beginner
-          </Button>
-          <Button variant={cookingSkill === 'confident' ? 'default' : 'outline'} onClick={() => setCookingSkill('confident')}>
-            Confident
-          </Button>
-          <Button variant={cookingSkill === 'chef' ? 'default' : 'outline'} onClick={() => setCookingSkill('chef')}>
-            Chef
-          </Button>
-        </div>
-
-        <h3 className="text-lg font-semibold">Equipment</h3>
-        <div className="flex flex-wrap gap-2">
-          {equipmentOptions.map(item => (
-            <Button
-              key={item.value}
-              variant={equipment.includes(item.value) ? 'default' : 'outline'}
-              onClick={() => handleEquipmentSelect(item.value)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-
-        <h3 className="text-lg font-semibold">Meal Prep Preference</h3>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={mealPrepPreference === 'daily' ? 'default' : 'outline'}
-            onClick={() => setMealPrepPreference('daily')}
-          >
-            Daily
-          </Button>
-          <Button
-            variant={mealPrepPreference === 'weekly' ? 'default' : 'outline'}
-            onClick={() => setMealPrepPreference('weekly')}
-          >
-            Weekly
-          </Button>
-          <Button
-            variant={mealPrepPreference === 'leftovers' ? 'default' : 'outline'}
-            onClick={() => setMealPrepPreference('leftovers')}
-          >
-            Leftovers
-          </Button>
-          <Button
-            variant={mealPrepPreference === 'noLeftovers' ? 'default' : 'outline'}
-            onClick={() => setMealPrepPreference('noLeftovers')}
-          >
-            No Leftovers
-          </Button>
-        </div>
-
-        <Button
-          onClick={() => {
-            onSelect({
-              timePerMeal,
-              cookingSkill,
-              equipment,
-              mealPrepPreference,
-            });
-            onNext();
-          }}
-        >
-          Next
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string, uploadedIngredients?: { [category: string]: string[] } }) => void}) => {
-  const [pantryInventory, setPantryInventory] = useState('');
-  const [manualIngredients, setManualIngredients] = useState('');
-  const [uploadedIngredients, setUploadedIngredients] = useState<{ [category: string]: string[] }>({});
-
-  const handleIngredientSelect = (category: string, ingredient: string, selected: boolean) => {
-    setUploadedIngredients(prev => {
-      const categoryIngredients = prev[category] || [];
-      if (selected) {
-        return { ...prev, [category]: [...categoryIngredients, ingredient] };
-      } else {
-        return { ...prev, [category]: categoryIngredients.filter(item => item !== ingredient) };
-      }
-    });
-  };
-
-  const foodCategories = {
-    'Grains': ['Rice', 'Pasta', 'Bread', 'Oats', 'Quinoa'],
-    'Fruits': ['Apple', 'Banana', 'Orange', 'Grapes', 'Berries'],
-    'Vegetables': ['Broccoli', 'Carrots', 'Spinach', 'Tomatoes', 'Potatoes'],
-    'Proteins': ['Chicken', 'Beef', 'Fish', 'Tofu', 'Lentils'],
-    'Dairy': ['Milk', 'Cheese', 'Yogurt', 'Butter'],
-    'Spices': ['Salt', 'Pepper', 'Garlic Powder', 'Cumin', 'Paprika'],
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Pantry Scan (Optional)</CardTitle>
-        <CardDescription>
-          Want to scan your pantry, upload a list, or plan from scratch?
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <PantryScanner />
-        <Accordion type="multiple">
-          {Object.entries(foodCategories).map(([category, ingredients]) => (
-            <AccordionItem key={category} value={category}>
-              <AccordionTrigger>{category}</AccordionTrigger>
-              <AccordionContent>
-                <div className="flex flex-wrap gap-2">
-                  {ingredients.map(ingredient => (
-                    <Button
-                      key={ingredient}
-                      variant={uploadedIngredients[category]?.includes(ingredient) ? 'default' : 'outline'}
-                      onClick={() => {
-                        const isSelected = !uploadedIngredients[category]?.includes(ingredient);
-                        handleIngredientSelect(category, ingredient, isSelected);
-                      }}
-                    >
-                      {ingredient}
-                    </Button>
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-
-        <Textarea
-          placeholder="Enter ingredients manually (comma-separated)"
-          onChange={(e) => setManualIngredients(e.target.value)}
-        />
-        <Button
-          onClick={() => {
-            onSelect({pantryInventory, manualIngredients, uploadedIngredients});
-            onNext();
-          }}
-        >
-          Upload - Skip and plan from scratch
-        </Button>
-      </CardContent>
-    </Card>
-  );
-};
-
-const SummaryConfirmationStep = ({onNext, onSelect, onboardingData}: {onNext: () => void; onSelect: (value: string) => void; onboardingData: OnboardingData}) => {
-  const [summary, setSummary] = useState('');
-  const {toast} = useToast();
-
-  // Generate a summary based on the onboarding data
-  const generateSummary = useCallback(() => {
-    let generatedSummary = 'Here’s what we’ll do: ';
-    if (onboardingData.age) {
-      generatedSummary += `You’re ${onboardingData.age}, `;
-    }
-    if (onboardingData.fitnessGoals) {
-      generatedSummary += `want to achieve your fitness goals `;
-    }
-    if (onboardingData.dietaryNeeds) {
-      generatedSummary += `while following a ${onboardingData.dietaryNeeds.dietType} diet `;
-    }
-    generatedSummary += 'We’ll create a personalized meal plan that fits your needs.';
-    setSummary(generatedSummary);
-  }, [onboardingData]);
-
-  // Generate summary on component mount
-  useState(() => {
-    generateSummary();
-  }, [generateSummary]);
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Smart Summary &amp; Confirmation</CardTitle>
-        <CardDescription>Review your preferences and confirm your meal plan.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
-        <div className="flex justify-between">
-          <Button
-            onClick={() => {
-              onSelect(summary);
-              onNext();
-              toast({
-                title: 'Meal Plan Generated!',
-                description: 'Your personalized meal plan is ready.',
-              });
-              setMealPlan({content: 'Generated Meal Plan Content'});
-            }}
-          >
-            Looks Good - Start Meal Planning
-          </Button>
-          <Button variant="outline" onClick={() => {}}>
-            Edit Something
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => {
+export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
   const [step, setStep] = useState(1);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
+  const router = useRouter();
   const {toast} = useToast();
 
-  const nextStep = () => {
+  const form = useForm<z.infer<typeof onboardingFormSchema>>({
+    resolver: zodResolver(onboardingFormSchema),
+    defaultValues: onboardingData,
+  });
+
+  const handleNextStep = () => {
     setStep(prevStep => prevStep + 1);
   };
 
-  const handleDataCapture = (data: any) => {
+  const handleDataCapture = (data: Partial<OnboardingData>) => {
     setOnboardingData(prevData => ({...prevData, ...data}));
+  };
+
+  const EntryModeStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {entryMode: 'llm' | 'interactive'}) => void}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>How would you like to set up your personalized meal experience?</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col space-y-4">
+          <Button variant="outline" onClick={() => {
+            onSelect({entryMode: 'llm'});
+            onNext();
+          }}>
+            Describe Your Goals (Recommended for Fast Setup)
+          </Button>
+          <CardDescription>Tell us what you're trying to achieve and we’ll take care of the rest.</CardDescription>
+          <Button variant="outline" onClick={() => {
+            onSelect({entryMode: 'interactive'});
+            onNext();
+          }}>
+            Build My Plan Step-by-Step (Interactive Setup)
+          </Button>
+          <CardDescription>Tap through guided steps to customize everything visually.</CardDescription>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const AgeAndBasicInfoStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {age: number}) => void}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Age</CardTitle>
+          <CardDescription>We adjust calories, nutrients, and recommendations based on your age.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="age"
+              render={({field}) => (
+                <FormItem>
+                  <FormLabel>How old are you?</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} onChange={(e) => {
+                      const age = parseInt(e.target.value);
+                      if (!isNaN(age)) {
+                        onSelect({age: age});
+                      }
+                      field.onChange(age);
+                    }}/>
+                  </FormControl>
+                  <FormMessage/>
+                </FormItem>
+              )}
+            />
+          </Form>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const FitnessGoalsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {fitnessGoals: string}) => void}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Fitness Goals</CardTitle>
+          <CardDescription>What are your fitness and health goals?</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="fitnessGoals"
+              render={({field}) => (
+                <FormItem>
+                  <FormLabel>Fitness Goals</FormLabel>
+                  <FormControl>
+                    <Input type="text" {...field} onChange={(e) => {
+                      onSelect({fitnessGoals: e.target.value});
+                      field.onChange(e.target.value);
+                    }}/>
+                  </FormControl>
+                  <FormMessage/>
+                </FormItem>
+              )}
+            />
+          </Form>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const GoalIntensityStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {goalIntensity: number}) => void}) => {
+    const [intensity, setIntensity] = useState(50);
+
+    useEffect(() => {
+      onSelect({goalIntensity: intensity});
+    }, [intensity, onSelect]);
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Goal Intensity</CardTitle>
+          <CardDescription>How aggressive should your plan be?</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <Slider
+              defaultValue={[intensity]}
+              max={100}
+              min={0}
+              step={1}
+              onValueChange={(value) => setIntensity(value[0])}
+            />
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Gentle</span>
+              <span>Balanced</span>
+              <span>Committed</span>
+              <span>Maximum Effort</span>
+            </div>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const DietaryNeedsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {dietType: string}) => void}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Dietary Needs</CardTitle>
+          <CardDescription>Select your diet type.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <Button variant="outline" onClick={() => {
+              onSelect({dietType: 'vegetarian'});
+              onNext();
+            }}>Vegetarian</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({dietType: 'vegan'});
+              onNext();
+            }}>Vegan</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({dietType: 'ketogenic'});
+              onNext();
+            }}>Ketogenic</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({dietType: 'paleo'});
+              onNext();
+            }}>Paleo</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const AllergiesStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {allergies: string[]}) => void}) => {
+    const [allergies, setAllergies] = useState<string[]>([]);
+
+    const handleAllergySelection = (allergy: string) => {
+      if (allergies.includes(allergy)) {
+        setAllergies(prevAllergies => prevAllergies.filter(item => item !== allergy));
+      } else {
+        setAllergies(prevAllergies => [...prevAllergies, allergy]);
+      }
+      onSelect({allergies: allergies});
+    };
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Allergies &amp; Intolerances</CardTitle>
+          <CardDescription>Select any allergies or intolerances you have.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-2">
+            <Button variant="outline" onClick={() => handleAllergySelection('dairy')}>Dairy</Button>
+            <Button variant="outline" onClick={() => handleAllergySelection('gluten')}>Gluten</Button>
+            <Button variant="outline" onClick={() => handleAllergySelection('soy')}>Soy</Button>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const TastePreferencesStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {tastePreferences: {sweet: number, spicy: number, savory: number, umami: number}}) => void}) => {
+    const [tastePreferences, setTastePreferences] = useState({
+      sweet: 50,
+      spicy: 50,
+      savory: 50,
+      umami: 50,
+    });
+
+    useEffect(() => {
+      onSelect({tastePreferences: tastePreferences});
+    }, [tastePreferences, onSelect]);
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Taste &amp; Cuisine Preferences</CardTitle>
+          <CardDescription>Tell us about your taste preferences.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <div>
+              <Label>Sweet</Label>
+              <Slider
+                defaultValue={[tastePreferences.sweet]}
+                max={100}
+                min={0}
+                step={1}
+                onValueChange={(value) => setTastePreferences({...tastePreferences, sweet: value[0]})}
+              />
+            </div>
+            <div>
+              <Label>Spicy</Label>
+              <Slider
+                defaultValue={[tastePreferences.spicy]}
+                max={100}
+                min={0}
+                step={1}
+                onValueChange={(value) => setTastePreferences({...tastePreferences, spicy: value[0]})}
+              />
+            </div>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const CuisinePreferencesStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {preferredCuisines: string[]}) => void}) => {
+    const [preferredCuisines, setPreferredCuisines] = useState<string[]>([]);
+
+    const handleCuisineSelection = (cuisine: string) => {
+      if (preferredCuisines.includes(cuisine)) {
+        setPreferredCuisines(prevCuisines => prevCuisines.filter(item => item !== cuisine));
+      } else {
+        setPreferredCuisines(prevCuisines => [...prevCuisines, cuisine]);
+      }
+      onSelect({preferredCuisines: preferredCuisines});
+    };
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Cuisine Preferences</CardTitle>
+          <CardDescription>Select your preferred cuisines.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="outline" onClick={() => handleCuisineSelection('mediterranean')}>Mediterranean</Button>
+            <Button variant="outline" onClick={() => handleCuisineSelection('asian')}>Asian</Button>
+            <Button variant="outline" onClick={() => handleCuisineSelection('latin')}>Latin</Button>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {timePerMeal: number, cookingSkill: string}) => void}) => {
+    const [timePerMeal, setTimePerMeal] = useState(20);
+    const [cookingSkill, setCookingSkill] = useState('beginner');
+
+    useEffect(() => {
+      onSelect({timePerMeal: timePerMeal, cookingSkill: cookingSkill});
+    }, [timePerMeal, cookingSkill, onSelect]);
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Cooking Habits</CardTitle>
+          <CardDescription>Tell us about your cooking habits.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <div>
+              <Label>Time per meal (minutes)</Label>
+              <Slider
+                defaultValue={[timePerMeal]}
+                max={60}
+                min={10}
+                step={5}
+                onValueChange={(value) => setTimePerMeal(value[0])}
+              />
+            </div>
+            <div>
+              <Label>Cooking Skill</Label>
+              <Select onValueChange={(value) => setCookingSkill(value)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select a skill" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="confident">Confident</SelectItem>
+                  <SelectItem value="chef">Chef</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const EquipmentStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {equipment: string[]}) => void}) => {
+    const [equipment, setEquipment] = useState<string[]>([]);
+
+    const handleEquipmentSelection = (equipmentItem: string) => {
+      if (equipment.includes(equipmentItem)) {
+        setEquipment(prevEquipment => prevEquipment.filter(item => item !== equipmentItem));
+      } else {
+        setEquipment(prevEquipment => [...prevEquipment, equipmentItem]);
+      }
+      onSelect({equipment: equipment});
+    };
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Equipment</CardTitle>
+          <CardDescription>Select the equipment you have.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-2">
+            <Button variant="outline" onClick={() => handleEquipmentSelection('oven')}>Oven</Button>
+            <Button variant="outline" onClick={() => handleEquipmentSelection('blender')}>Blender</Button>
+            <Button variant="outline" onClick={() => handleEquipmentSelection('air fryer')}>Air Fryer</Button>
+          </div>
+          <Button onClick={onNext}>Next</Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const MealPrepPreferenceStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {mealPrepPreference: string}) => void}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Meal Prep Preference</CardTitle>
+          <CardDescription>Select your meal prep preference.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-2">
+            <Button variant="outline" onClick={() => {
+              onSelect({mealPrepPreference: 'daily'});
+              onNext();
+            }}>Daily</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({mealPrepPreference: 'weekly'});
+              onNext();
+            }}>Weekly</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({mealPrepPreference: 'leftovers'});
+              onNext();
+            }}>Leftovers</Button>
+            <Button variant="outline" onClick={() => {
+              onSelect({mealPrepPreference: 'noLeftovers'});
+              onNext();
+            }}>No Leftovers</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string; manualIngredients?:string; uploadedIngredients?: { [category: string]: string[] }}) => void}) => {
+    const [pantryInventory, setPantryInventory] = useState('');
+    const [manualIngredients, setManualIngredients] = useState('');
+    const [uploadedIngredients, setUploadedIngredients] = useState<{ [category: string]: string[] }>({});
+  
+    const handleCategorySelection = (category: string, ingredient: string) => {
+      setUploadedIngredients(prevIngredients => {
+        const updatedIngredients = { ...prevIngredients };
+  
+        if (!updatedIngredients[category]) {
+          updatedIngredients[category] = [];
+        }
+  
+        if (updatedIngredients[category].includes(ingredient)) {
+          updatedIngredients[category] = updatedIngredients[category].filter(item => item !== ingredient);
+        } else {
+          updatedIngredients[category].push(ingredient);
+        }
+  
+        return updatedIngredients;
+      });
+    };
+  
+    const predefinedCategories = [
+      'Fruits',
+      'Vegetables',
+      'Grains',
+      'Proteins',
+      'Dairy',
+      'Spices',
+      'Oils',
+      'Nuts',
+      'Canned Goods',
+      'Baking Supplies',
+    ];
+  
+    const subcategories = {
+      Fruits: ['Apple', 'Banana', 'Orange', 'Grapes', 'Strawberries'],
+      Vegetables: ['Carrot', 'Broccoli', 'Spinach', 'Tomato', 'Cucumber'],
+      Grains: ['Rice', 'Quinoa', 'Oats', 'Pasta', 'Bread'],
+      Proteins: ['Chicken', 'Beef', 'Tofu', 'Lentils', 'Eggs'],
+      Dairy: ['Milk', 'Cheese', 'Yogurt', 'Butter', 'Cream'],
+      Spices: ['Salt', 'Pepper', 'Cumin', 'Paprika', 'Garlic Powder'],
+      Oils: ['Olive Oil', 'Coconut Oil', 'Vegetable Oil', 'Sesame Oil'],
+      Nuts: ['Almonds', 'Peanuts', 'Cashews', 'Walnuts', 'Pecans'],
+      'Canned Goods': ['Tomatoes', 'Beans', 'Corn', 'Peas'],
+      'Baking Supplies': ['Flour', 'Sugar', 'Baking Powder', 'Vanilla Extract'],
+    };
+  
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Pantry Scan (Optional)</CardTitle>
+          <CardDescription>Want to scan your pantry or fridge to start with what you already have?</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <PantryScanner />
+            <Textarea
+              placeholder="Manually enter ingredients"
+              value={manualIngredients}
+              onChange={(e) => {
+                setManualIngredients(e.target.value);
+                onSelect({ manualIngredients: e.target.value });
+              }}
+            />
+             <div className="flex flex-col space-y-2">
+              {predefinedCategories.map((category) => (
+                <div key={category} className="flex flex-col space-y-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline">{category}</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {subcategories[category]?.map((ingredient) => (
+                        <DropdownMenuItem key={ingredient}>
+                          <Button
+                            variant="ghost"
+                            className={`w-full justify-start ${
+                              uploadedIngredients[category]?.includes(ingredient) ? 'bg-accent text-accent-foreground' : ''
+                            }`}
+                            onClick={() => handleCategorySelection(category, ingredient)}
+                          >
+                            {ingredient}
+                          </Button>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
+            </div>
+  
+            <Button onClick={() => {
+              onSelect({ uploadedIngredients: uploadedIngredients });
+              onNext();
+            }}>Upload</Button>
+            <Button variant="secondary" onClick={onNext}>Skip and plan from scratch</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const SummaryConfirmationStep = ({onNext, onSelect, onboardingData}: {onNext: () => void; onSelect: (value: {summaryConfirmation: boolean}) => void; onboardingData: OnboardingData}) => {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Summary &amp; Confirmation</CardTitle>
+          <CardDescription>Review your preferences and confirm.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <p>Age: {onboardingData.age}</p>
+            <p>Fitness Goals: {onboardingData.fitnessGoals}</p>
+            <p>Diet Type: {onboardingData.dietType}</p>
+            <Button onClick={() => {
+              onSelect({summaryConfirmation: true});
+              onNext();
+            }}>Looks Good - Start Meal Planning</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   const renderStep = () => {
@@ -829,62 +613,88 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => 
       case 1:
         return (
           <EntryModeStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({entryMode: value})}
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 2:
         return (
-          <AgeStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({age: value})}
+          <AgeAndBasicInfoStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 3:
-        if (onboardingData.entryMode === 'llm') {
-          return (
-            <FitnessGoalsLLMStep
-              onNext={nextStep}
-              onSelect={(value) => handleDataCapture({fitnessGoals: value})}
-            />
-          );
-        } else {
-          return (
-            <FitnessGoalsInteractiveStep
-              onNext={nextStep}
-              onSelect={(value) => handleDataCapture({fitnessGoals: value})}
-            />
-          );
-        }
+        return (
+          <FitnessGoalsStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
       case 4:
         return (
-          <DietaryNeedsStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({dietaryNeeds: value})}
+          <GoalIntensityStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 5:
         return (
-          <TastePreferencesStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({tastePreferences: value})}
+          <DietaryNeedsStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 6:
         return (
-          <CookingHabitsStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({cookingHabits: value})}
+          <AllergiesStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 7:
         return (
-          <PantryScanStep
-            onNext={nextStep}
-            onSelect={(value) => handleDataCapture({pantryInventory: value})}
+          <TastePreferencesStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
           />
         );
       case 8:
+        return (
+          <CuisinePreferencesStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
+      case 9:
+        return (
+          <CookingHabitsStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
+      case 10:
+        return (
+          <EquipmentStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
+      case 11:
+        return (
+          <MealPrepPreferenceStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
+      case 12:
+        return (
+          <PantryScanStep
+            onNext={handleNextStep}
+            onSelect={(value) => handleDataCapture(value)}
+          />
+        );
+      case 13:
         return (
           <SummaryConfirmationStep
             onNext={() => {
@@ -893,7 +703,8 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => 
                 title: 'Onboarding Complete!',
                 description: 'Your meal plan is being generated.',
               });
-              setMealPlan({content: 'Generated Meal Plan Content'});
+              // NOW CALL THE SET ONBOARDING COMPLETE FOR HOME SCREEN
+              setMealPlan();
             }}
             onSelect={(value) => handleDataCapture({summaryConfirmation: value})}
             onboardingData={onboardingData}
@@ -910,4 +721,3 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => 
     </div>
   );
 };
-
