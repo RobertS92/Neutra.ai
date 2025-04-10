@@ -1,3 +1,4 @@
+
 'use client';
 
 import {Button} from '@/components/ui/button';
@@ -678,7 +679,7 @@ const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (v
   );
 };
 
-const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string, uploadedIngredients?: { [category: string]: string[] }}}) => {
+const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string, uploadedIngredients?: { [category: string]: string[] } }) => void}) => {
   const [pantryInventory, setPantryInventory] = useState('');
   const [manualIngredients, setManualIngredients] = useState('');
   const [uploadedIngredients, setUploadedIngredients] = useState<{ [category: string]: string[] }>({});
