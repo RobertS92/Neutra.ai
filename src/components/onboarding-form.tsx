@@ -1,6 +1,6 @@
 'use client';
 
-import {useState, useCallback} from 'react';
+import {useState, useCallback, useEffect} from 'react';
 import {useRouter} from 'next/navigation';
 import {z} from 'zod';
 import {useForm} from 'react-hook-form';
@@ -277,8 +277,11 @@ export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
       } else {
         setAllergies(prevAllergies => [...prevAllergies, allergy]);
       }
-      onSelect({allergies: allergies});
     };
+
+    useEffect(() => {
+      onSelect({allergies: allergies});
+    }, [allergies, onSelect]);
 
     return (
       <Card className="w-full">
@@ -354,8 +357,11 @@ export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
       } else {
         setPreferredCuisines(prevCuisines => [...prevCuisines, cuisine]);
       }
-      onSelect({preferredCuisines: preferredCuisines});
     };
+
+    useEffect(() => {
+      onSelect({preferredCuisines: preferredCuisines});
+    }, [preferredCuisines, onSelect]);
 
     return (
       <Card className="w-full">
@@ -430,8 +436,11 @@ export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
       } else {
         setEquipment(prevEquipment => [...prevEquipment, equipmentItem]);
       }
-      onSelect({equipment: equipment});
     };
+
+    useEffect(() => {
+      onSelect({equipment: equipment});
+    }, [equipment, onSelect]);
 
     return (
       <Card className="w-full">
@@ -446,37 +455,6 @@ export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
             <Button variant="outline" onClick={() => handleEquipmentSelection('air fryer')}>Air Fryer</Button>
           </div>
           <Button onClick={onNext}>Next</Button>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const MealPrepPreferenceStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {mealPrepPreference: string}) => void}) => {
-    return (
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Meal Prep Preference</CardTitle>
-          <CardDescription>Select your meal prep preference.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col space-y-2">
-            <Button variant="outline" onClick={() => {
-              onSelect({mealPrepPreference: 'daily'});
-              onNext();
-            }}>Daily</Button>
-            <Button variant="outline" onClick={() => {
-              onSelect({mealPrepPreference: 'weekly'});
-              onNext();
-            }}>Weekly</Button>
-            <Button variant="outline" onClick={() => {
-              onSelect({mealPrepPreference: 'leftovers'});
-              onNext();
-            }}>Leftovers</Button>
-            <Button variant="outline" onClick={() => {
-              onSelect({mealPrepPreference: 'noLeftovers'});
-              onNext();
-            }}>No Leftovers</Button>
-          </div>
         </CardContent>
       </Card>
     );
@@ -500,7 +478,8 @@ export const OnboardingForm = ({setMealPlan}: {setMealPlan: () => void}) => {
         } else {
           updatedIngredients[category].push(ingredient);
         }
-  
+          
+        onSelect({ uploadedIngredients: updatedIngredients });
         return updatedIngredients;
       });
     };
