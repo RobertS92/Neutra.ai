@@ -12,6 +12,7 @@ import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {Switch} from '@/components/ui/switch';
 import {Label} from '@/components/ui/label';
 import {PantryScanner} from '@/components/pantry-scanner';
+// import {toast} from 'sonner';
 
 // Define types for onboarding data and steps
 interface OnboardingData {
@@ -49,6 +50,7 @@ interface OnboardingData {
     mealPrepPreference?: string;
   };
   pantryInventory?: string;
+  manualIngredients?: string;
   summaryConfirmation?: string;
 }
 
@@ -674,8 +676,9 @@ const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (v
   );
 };
 
-const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: string) => void}) => {
+const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string}) => void}) => {
   const [pantryInventory, setPantryInventory] = useState('');
+  const [manualIngredients, setManualIngredients] = useState('');
 
   return (
     <Card className="w-full">
@@ -691,9 +694,13 @@ const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (valu
           onNext();
         }}>Upload image/video (Pantry Vision AI triggers inventory)</Button> */}
         <PantryScanner />
+        <Textarea
+          placeholder="Enter ingredients manually (comma-separated)"
+          onChange={(e) => setManualIngredients(e.target.value)}
+        />
         <Button
           onClick={() => {
-            onSelect('skip');
+            onSelect({pantryInventory, manualIngredients});
             onNext();
           }}
         >
@@ -706,6 +713,7 @@ const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (valu
 
 const SummaryConfirmationStep = ({onNext, onSelect, onboardingData}: {onNext: () => void; onSelect: (value: string) => void; onboardingData: OnboardingData}) => {
   const [summary, setSummary] = useState('');
+  const {toast} = useToast();
 
   // Generate a summary based on the onboarding data
   const generateSummary = useCallback(() => {
@@ -741,6 +749,10 @@ const SummaryConfirmationStep = ({onNext, onSelect, onboardingData}: {onNext: ()
             onClick={() => {
               onSelect(summary);
               onNext();
+              toast({
+                title: 'Meal Plan Generated!',
+                description: 'Your personalized meal plan is ready.',
+              });
             }}
           >
             Looks Good - Start Meal Planning
@@ -853,4 +865,3 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => 
     </div>
   );
 };
-
