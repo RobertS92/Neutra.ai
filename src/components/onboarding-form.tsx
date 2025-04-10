@@ -12,7 +12,7 @@ import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {Switch} from '@/components/ui/switch';
 import {Label} from '@/components/ui/label';
 import {PantryScanner} from '@/components/pantry-scanner';
-// import {toast} from 'sonner';
+import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from '@/components/ui/accordion';
 
 // Define types for onboarding data and steps
 interface OnboardingData {
@@ -52,6 +52,7 @@ interface OnboardingData {
   pantryInventory?: string;
   manualIngredients?: string;
   summaryConfirmation?: string;
+  uploadedIngredients?: { [category: string]: string[] }; // Added: Track uploaded ingredients
 }
 
 const dietTypeOptions = [
@@ -97,6 +98,7 @@ const EntryModeStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value
     <Card className="w-full">
       <CardHeader>
         <CardTitle>How would you like to set up your personalized meal experience?</CardTitle>
+        <CardDescription>We adjust calories, nutrients, and recommendations based on your age.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <Button
@@ -676,35 +678,76 @@ const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (v
   );
 };
 
-const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string}) => void}) => {
+const PantryScanStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: {pantryInventory?:string,manualIngredients?:string, uploadedIngredients?: { [category: string]: string[] }}}) => {
   const [pantryInventory, setPantryInventory] = useState('');
   const [manualIngredients, setManualIngredients] = useState('');
+  const [uploadedIngredients, setUploadedIngredients] = useState<{ [category: string]: string[] }>({});
+
+  const handleIngredientSelect = (category: string, ingredient: string, selected: boolean) => {
+    setUploadedIngredients(prev => {
+      const categoryIngredients = prev[category] || [];
+      if (selected) {
+        return { ...prev, [category]: [...categoryIngredients, ingredient] };
+      } else {
+        return { ...prev, [category]: categoryIngredients.filter(item => item !== ingredient) };
+      }
+    });
+  };
+
+  const foodCategories = {
+    'Grains': ['Rice', 'Pasta', 'Bread', 'Oats', 'Quinoa'],
+    'Fruits': ['Apple', 'Banana', 'Orange', 'Grapes', 'Berries'],
+    'Vegetables': ['Broccoli', 'Carrots', 'Spinach', 'Tomatoes', 'Potatoes'],
+    'Proteins': ['Chicken', 'Beef', 'Fish', 'Tofu', 'Lentils'],
+    'Dairy': ['Milk', 'Cheese', 'Yogurt', 'Butter'],
+    'Spices': ['Salt', 'Pepper', 'Garlic Powder', 'Cumin', 'Paprika'],
+  };
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Pantry Scan (Optional)</CardTitle>
         <CardDescription>
-          Want to scan your pantry or fridge to start with what you already have?
+          Want to scan your pantry, upload a list, or plan from scratch?
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/*       <Button onClick={() => {
-          onSelect('camera');
-          onNext();
-        }}>Upload image/video (Pantry Vision AI triggers inventory)</Button> */}
         <PantryScanner />
+        <Accordion type="multiple">
+          {Object.entries(foodCategories).map(([category, ingredients]) => (
+            <AccordionItem key={category} value={category}>
+              <AccordionTrigger>{category}</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-wrap gap-2">
+                  {ingredients.map(ingredient => (
+                    <Button
+                      key={ingredient}
+                      variant={uploadedIngredients[category]?.includes(ingredient) ? 'default' : 'outline'}
+                      onClick={() => {
+                        const isSelected = !uploadedIngredients[category]?.includes(ingredient);
+                        handleIngredientSelect(category, ingredient, isSelected);
+                      }}
+                    >
+                      {ingredient}
+                    </Button>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+
         <Textarea
           placeholder="Enter ingredients manually (comma-separated)"
           onChange={(e) => setManualIngredients(e.target.value)}
         />
         <Button
           onClick={() => {
-            onSelect({pantryInventory, manualIngredients});
+            onSelect({pantryInventory, manualIngredients, uploadedIngredients});
             onNext();
           }}
         >
-          Skip and plan from scratch
+          Upload - Skip and plan from scratch
         </Button>
       </CardContent>
     </Card>
@@ -753,6 +796,7 @@ const SummaryConfirmationStep = ({onNext, onSelect, onboardingData}: {onNext: ()
                 title: 'Meal Plan Generated!',
                 description: 'Your personalized meal plan is ready.',
               });
+              setMealPlan({content: 'Generated Meal Plan Content'});
             }}
           >
             Looks Good - Start Meal Planning
@@ -865,3 +909,4 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => 
     </div>
   );
 };
+
