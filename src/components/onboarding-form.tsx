@@ -1,179 +1,253 @@
 'use client';
 
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import {Button} from '@/components/ui/button';
-import {z} from 'zod';
-import {zodResolver} from '@hookform/resolvers/zod';
-import {useForm} from 'react-hook-form';
-import {Input} from '@/components/ui/input';
-import {Textarea} from '@/components/ui/textarea';
-import {generateMealPlan} from '@/ai/flows/generate-meal-plan';
-import {useToast} from '@/hooks/use-toast';
-import {useEffect} from 'react';
-import {useRouter} from 'next/navigation';
-import {MealPlan} from '@/types';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Icons} from '@/components/icons';
+import {useState} from 'react';
 
-const formSchema = z.object({
-  dietaryRestrictions: z.string().describe('Dietary restrictions'),
-  fitnessGoals: z.string().describe('Fitness goals'),
-  tastePreferences: z.string().describe('Taste preferences'),
-  cookingSkills: z.string().describe('Cooking skills'),
-  timeAvailability: z.string().describe('Time availability'),
-  mealFrequency: z.string().describe('Meal frequency'),
-});
-
-interface OnboardingFormProps {
-  setMealPlan: (mealPlan: MealPlan) => void;
+// Define types for onboarding data and steps
+interface OnboardingData {
+  cookingFor?: string[];
+  dietType?: string;
+  fitnessGoals?: string;
+  allergies?: string[];
+  tastePreferences?: {spicy: number; cuisines: string[]; dislikedFoods: string[]};
+  cookingHabits?: {cookEveryday: boolean; mealPrep: boolean; fastMeals: boolean};
+  scheduleSync?: {appleHealth: boolean; fastingWindow: string; workoutSchedule: boolean};
 }
 
-export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => {
-  const {toast} = useToast();
-  const router = useRouter();
+const cookingForOptions = [
+  {value: 'justMe', label: 'Just me'},
+  {value: 'mePartner', label: 'Me + partner'},
+  {value: 'family', label: 'Family'},
+  {value: 'healthNeeds', label: 'For someone with health needs'},
+  {value: 'mealPrep', label: 'Meal prep for the week'},
+];
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      dietaryRestrictions: '',
-      fitnessGoals: '',
-      tastePreferences: '',
-      cookingSkills: '',
-      timeAvailability: '',
-      mealFrequency: '',
-    },
-  });
+const dietTypeOptions = [
+  {value: 'omnivore', label: 'Omnivore'},
+  {value: 'vegetarian', label: 'Vegetarian'},
+  {value: 'vegan', label: 'Vegan'},
+  {value: 'pescatarian', label: 'Pescatarian'},
+  {value: 'keto', label: 'Keto'},
+  {value: 'lowFODMAP', label: 'Low-FODMAP'},
+  {value: 'diabetic', label: 'Diabetic'},
+];
 
-  useEffect(() => {
-    form.reset();
-  }, []);
+interface OnboardingFormProps {
+  setMealPlan: (mealPlan: {content: string}) => void;
+}
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      const mealPlanData = await generateMealPlan(values);
-      if (mealPlanData) {
-        setMealPlan({content: mealPlanData.mealPlan});
-        toast({
-          title: 'Meal plan generated successfully!',
-        });
-        router.refresh();
+// Functional components for each step
+
+const WhoAreYouCookingForStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (values: string[]) => void}) => {
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const handleSelect = (value: string) => {
+    setSelected(prev => {
+      if (prev.includes(value)) {
+        return prev.filter(item => item !== value);
       } else {
-        toast({
-          title: 'Failed to generate meal plan.',
-          variant: 'destructive',
-        });
+        return [...prev, value];
       }
-    } catch (error: any) {
-      toast({
-        title: 'Error generating meal plan.',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  }
+    });
+  };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 w-full max-w-md">
-        <FormField
-          control={form.control}
-          name="dietaryRestrictions"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Dietary Restrictions</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Vegetarian, Gluten-Free" {...field} />
-              </FormControl>
-              <FormDescription>Specify any dietary restrictions you have.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="fitnessGoals"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Fitness Goals</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Weight Loss, Muscle Gain" {...field} />
-              </FormControl>
-              <FormDescription>
-                Let us know about your fitness goals so we can generate appropriate meal plan.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="tastePreferences"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Taste Preferences</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., Likes Italian, Dislikes Spicy" {...field} />
-              </FormControl>
-              <FormDescription>Mention your taste preferences.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="cookingSkills"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Cooking Skills</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Beginner, Intermediate" {...field} />
-              </FormControl>
-              <FormDescription>Specify your cooking skill level.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="timeAvailability"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Time Availability</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., 30 minutes, 1 hour" {...field} />
-              </FormControl>
-              <FormDescription>
-                Specify the time you have available for meal preparation.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="mealFrequency"
-          render={({field}) => (
-            <FormItem>
-              <FormLabel>Meal Frequency</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., 3 meals, 5 meals" {...field} />
-              </FormControl>
-              <FormDescription>
-                Specify how many meals you would like to have in your plan.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Who Are You Cooking For?</CardTitle>
+        <CardDescription>Select all that apply.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {cookingForOptions.map(option => (
+          <Button
+            key={option.value}
+            variant={selected.includes(option.value) ? 'default' : 'outline'}
+            className="justify-start"
+            onClick={() => handleSelect(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+        <Button onClick={() => {
+          onSelect(selected);
+          onNext();
+        }}
+          disabled={selected.length === 0}
+        >Next</Button>
+      </CardContent>
+    </Card>
+  );
+};
 
-        <Button type="submit">Generate Meal Plan</Button>
-      </form>
-    </Form>
+const DietTypeStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: string) => void}) => {
+  const [selected, setSelected] = useState<string | null>(null);
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Diet Type</CardTitle>
+        <CardDescription>Select your diet type.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {dietTypeOptions.map(option => (
+          <Button
+            key={option.value}
+            variant={selected === option.value ? 'default' : 'outline'}
+            className="justify-start"
+            onClick={() => setSelected(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+        <Button onClick={() => {
+          if (selected) {
+            onSelect(selected);
+            onNext();
+          }
+        }}
+          disabled={!selected}
+        >Next</Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+const FitnessGoalsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: string) => void}) => (
+  <Card className="w-full">
+    <CardHeader>
+      <CardTitle>Fitness Goals</CardTitle>
+      <CardDescription>Set your fitness goals.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Button onClick={onNext}>Next</Button>
+    </CardContent>
+  </Card>
+);
+
+const AllergiesRestrictionsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: string[]) => void}) => (
+  <Card className="w-full">
+    <CardHeader>
+      <CardTitle>Allergies &amp; Restrictions</CardTitle>
+      <CardDescription>List any allergies or restrictions.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Button onClick={onNext}>Next</Button>
+    </CardContent>
+  </Card>
+);
+
+const TastePreferencesCuisineStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => (
+  <Card className="w-full">
+    <CardHeader>
+      <CardTitle>Taste Preferences &amp; Cuisine</CardTitle>
+      <CardDescription>Indicate your taste preferences.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Button onClick={onNext}>Next</Button>
+    </CardContent>
+  </Card>
+);
+
+const CookingHabitsStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => (
+  <Card className="w-full">
+    <CardHeader>
+      <CardTitle>Cooking Habits</CardTitle>
+      <CardDescription>Share your cooking habits.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Button onClick={onNext}>Next</Button>
+    </CardContent>
+  </Card>
+);
+
+const ScheduleActivitySyncStep = ({onNext, onSelect}: {onNext: () => void; onSelect: (value: any) => void}) => (
+  <Card className="w-full">
+    <CardHeader>
+      <CardTitle>Schedule &amp; Activity Sync</CardTitle>
+      <CardDescription>Sync your schedule and activity data.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Button onClick={onNext}>Generate Meal Plan</Button>
+    </CardContent>
+  </Card>
+);
+
+export const OnboardingForm: React.FC<OnboardingFormProps> = ({setMealPlan}) => {
+  const [step, setStep] = useState(1);
+  const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
+
+  const nextStep = () => {
+    setStep(prevStep => prevStep + 1);
+  };
+
+  const handleDataCapture = (data: any) => {
+    setOnboardingData(prevData => ({...prevData, ...data}));
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
+          <WhoAreYouCookingForStep
+            onNext={nextStep}
+            onSelect={(values) => handleDataCapture({cookingFor: values})}
+          />
+        );
+      case 2:
+        return (
+          <DietTypeStep
+            onNext={nextStep}
+            onSelect={(value) => handleDataCapture({dietType: value})}
+          />
+        );
+      case 3:
+        return (
+          <FitnessGoalsStep
+            onNext={nextStep}
+            onSelect={(value) => handleDataCapture({fitnessGoals: value})}
+          />
+        );
+      case 4:
+        return (
+          <AllergiesRestrictionsStep
+            onNext={nextStep}
+            onSelect={(value) => handleDataCapture({allergies: value})}
+          />
+        );
+      case 5:
+        return (
+          <TastePreferencesCuisineStep
+            onNext={nextStep}
+            onSelect={(value) => handleDataCapture({tastePreferences: value})}
+          />
+        );
+      case 6:
+        return (
+          <CookingHabitsStep
+            onNext={nextStep}
+            onSelect={(value) => handleDataCapture({cookingHabits: value})}
+          />
+        );
+      case 7:
+        return (
+          <ScheduleActivitySyncStep
+            onNext={() => {
+              console.log('Final Onboarding Data:', onboardingData);
+              setMealPlan({content: 'Generated Meal Plan Content'});
+            }}
+            onSelect={(value) => handleDataCapture({scheduleSync: value})}
+          />
+        );
+      default:
+        return <p>Onboarding Complete!</p>;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center w-full">
+      {renderStep()}
+    </div>
   );
 };
